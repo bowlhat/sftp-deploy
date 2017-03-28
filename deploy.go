@@ -14,7 +14,6 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// YAML Configuration file
 type configuration struct {
 	Connection struct {
 		Username string
@@ -86,14 +85,32 @@ func main() {
 		if err != nil {
 			log.Fatalln(err)
 		}
-		responses := sftp.BackupFiles(config.Backup.To, files)
+
+		if *debugging <= 1 {
+			bar.Total = 0
+			bar.Prefix("Backing-up... ")
+			bar.Start()
+		}
+
+		saved, errors := sftp.BackupFiles(config.Backup.To, files)
+
+		go func() {
+			for range saved {
+				bar.Increment()
+			}
+		}()
+		
 		errorsEncountered := false
-		for response := range responses {
+		for err := range errors {
 			errorsEncountered = true
-			log.Println(response.Err)
+			log.Println(err.Err)
 		}
 		if errorsEncountered {
 			log.Fatalln("Backup failed. Quitting.")
+		}
+
+		if *debugging <= 1 {
+			bar.FinishPrint("Backup complete")
 		}
 	}
 
@@ -103,6 +120,7 @@ func main() {
 		errorsChannel := make(chan errorResponse)
 
 		if *debugging <= 1 {
+			bar.Total = 0
 			bar.Prefix("Downloading... ")
 			bar.Start()
 		}
@@ -149,8 +167,9 @@ func main() {
 		close(downloadDone)
 		close(downloadedFile)
 		close(errorsChannel)
+
 		if *debugging <= 1 {
-			bar.FinishPrint("Download complete.")
+			bar.FinishPrint("Download complete")
 		}
 	}
 
@@ -175,6 +194,10 @@ func main() {
 
 		for response := range errorChannel {
 			log.Println(response.Err)
+		}
+
+		if *debugging <= 1 {
+			bar.FinishPrint("Upload finished")
 		}
 	}
 }
