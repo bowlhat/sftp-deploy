@@ -99,7 +99,7 @@ func main() {
 				bar.Increment()
 			}
 		}()
-		
+
 		errorsEncountered := false
 		for err := range errors {
 			errorsEncountered = true
@@ -175,6 +175,7 @@ func main() {
 
 	if upload == true {
 		if *debugging <= 1 {
+			bar.Total = 0
 			bar.Prefix("Uploading... ")
 			bar.Start()
 		}
