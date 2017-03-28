@@ -1,0 +1,22 @@
+connection:
+  username: ""
+  password: ""
+  hostname: "127.0.0.1"
+  port: 22
+backup:
+  to: "backup"
+  from:
+    - "htdocs/wp-content/uploads"
+    - "htdocs/wp-content/mu-plugins"
+    - "htdocs/wp-content/plugins"
+    - "htdocs/wp-content/themes"
+download:
+  - local: "htdocs/wp-content/uploads"
+    remote: "htdocs/wp-content/uploads"
+upload:
+  - local: "project/mu-plugins"
+    remote: "htdocs/wp-content/mu-plugins"
+  - local: "project/plugins"
+    remote: "htdocs/wp-content/plugins"
+  - local: "project/themes"
+    remote: "htdocs/wp-content/themes"

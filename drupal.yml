@@ -1,0 +1,25 @@
+connection:
+  username: ""
+  password: ""
+  hostname: "127.0.0.1"
+  port: 22
+backup:
+  to: "backup"
+  from:
+    - "htdocs/sites/all/modules"
+    - "htdocs/sites/all/libraries"
+    - "htdocs/sites/all/files"
+    - "htdocs/sites/default/themes"
+    - "htdocs/sites/default/files"
+download:
+  - local: "htdocs/sites/all/files"
+    remote: "htdocs/sites/all/files"
+  - local: "htdocs/sites/default/files"
+    remote: "htdocs/sites/default/files"
+upload:
+  - local: "project/modules"
+    remote: "htdocs/sites/all/modules"
+  - local: "project/libraries"
+    remote: "htdocs/sites/all/libraries"
+  - local: "project/themes"
+    remote: "htdocs/sites/default/themes"
