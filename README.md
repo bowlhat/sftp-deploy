@@ -51,5 +51,6 @@ Ideally you will have an ssh-agent running with a valid key loaded which is acce
 All these repositories are included automatically by the `go get` command. They're documented here for completeness.
 
 - Our custom [SSH Agent abstraction](https://github.com/bowlhat/ssh-agent)
-- The spinner is from [Brian Downs' spinner project](https://github.com/briandowns/spinner)
+- Our custom [SFTP Client abstraction](https://github.com/bowlhat/sftp-client)
+- Out custom [SSH Client abstraction](https://github.com/bowlhat/ssh-client)
 - [Progressbars](https://github.com/cheggaaa/pb) are powered by cheggaaa's progressbar project
