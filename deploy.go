@@ -4,16 +4,16 @@ import (
 	"flag"
 	"io/ioutil"
 	"log"
-	"sync/atomic"
 
 	sftpclient "github.com/bowlhat/sftp-client"
 
-	"strings"
-
-	"github.com/cheggaaa/pb"
 	"gopkg.in/yaml.v2"
 )
 
+type backupConfig struct {
+	To   string
+	From []string
+}
 type configuration struct {
 	Connection struct {
 		Username string
@@ -21,10 +21,7 @@ type configuration struct {
 		Hostname string
 		Port     int
 	}
-	Backup struct {
-		To   string
-		From []string
-	}
+	Backup   backupConfig
 	Download []sftpclient.FolderMapping
 	Upload   []sftpclient.FolderMapping
 }
@@ -47,7 +44,7 @@ func main() {
 	flag.Parse()
 
 	if *configfilename == "" {
-		log.Fatalf("config flag indicating configuration file is required")
+		log.Fatalf("-config flag is required, see: -help")
 	}
 
 	configfile, err := ioutil.ReadFile(*configfilename)
@@ -60,10 +57,6 @@ func main() {
 		log.Fatalf("YAML error: %v", err)
 	}
 
-	upload := *doUpload
-	backup := *doBackup
-	download := *doDownload
-
 	// start ssh client on tcp connection
 	sftp, err := sftpclient.New(
 		config.Connection.Hostname,
@@ -72,133 +65,18 @@ func main() {
 		config.Connection.Password)
 
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("SSH Conenction error: %v", err)
 	}
 
-	var bar *pb.ProgressBar
-	if *debugging <= 1 {
-		bar = pb.New(0)
+	if *doBackup == true {
+		backup(sftp, config.Backup)
 	}
 
-	if backup == true {
-		files, err := sftp.FindAllRemoteFiles(config.Backup.From)
-		if err != nil {
-			log.Fatalln(err)
-		}
-
-		if *debugging <= 1 {
-			bar.Total = 0
-			bar.Prefix("Backing-up... ")
-			bar.Start()
-		}
-
-		saved, errors := sftp.BackupFiles(config.Backup.To, files)
-
-		go func() {
-			for range saved {
-				bar.Increment()
-			}
-		}()
-
-		errorsEncountered := false
-		for err := range errors {
-			errorsEncountered = true
-			log.Println(err.Err)
-		}
-		if errorsEncountered {
-			log.Fatalln("Backup failed. Quitting.")
-		}
-
-		if *debugging <= 1 {
-			bar.FinishPrint("Backup complete")
-		}
+	if *doDownload == true {
+		download(sftp, config.Download)
 	}
 
-	if download == true {
-		downloadedFile := make(chan bool)
-		downloadDone := make(chan bool)
-		errorsChannel := make(chan errorResponse)
-
-		if *debugging <= 1 {
-			bar.Total = 0
-			bar.Prefix("Downloading... ")
-			bar.Start()
-		}
-
-		for _, folder := range config.Download {
-			go func(f sftpclient.FolderMapping) {
-				defer func() {
-					downloadDone <- true
-				}()
-
-				media, err := sftp.FindAllRemoteFiles([]string{f.Remote})
-				if err != nil {
-					errorsChannel <- errorResponse{err}
-					return
-				}
-				atomic.AddInt64(&bar.Total, int64(len(media)))
-				for _, remotefile := range media {
-					trimmed := strings.TrimPrefix(remotefile, f.Remote)
-					localfile := strings.Join([]string{f.Local, trimmed}, "/")
-					if err := sftp.GetFile(localfile, remotefile); err != nil {
-						errorsChannel <- errorResponse{err}
-					}
-					downloadedFile <- true
-				}
-			}(folder)
-		}
-
-		go func() {
-			for range downloadedFile {
-				<-downloadedFile
-				bar.Increment()
-			}
-		}()
-
-		go func() {
-			for err := range errorsChannel {
-				log.Println(err)
-			}
-		}()
-
-		for range config.Download {
-			<-downloadDone
-		}
-		close(downloadDone)
-		close(downloadedFile)
-		close(errorsChannel)
-
-		if *debugging <= 1 {
-			bar.FinishPrint("Download complete")
-		}
-	}
-
-	if upload == true {
-		if *debugging <= 1 {
-			bar.Total = 0
-			bar.Prefix("Uploading... ")
-			bar.Start()
-		}
-
-		errorChannel, countChannel, copiedCountChannel := sftp.Upload(config.Upload)
-
-		go func() {
-			for range countChannel {
-				atomic.AddInt64(&bar.Total, 1)
-			}
-		}()
-		go func() {
-			for range copiedCountChannel {
-				bar.Increment()
-			}
-		}()
-
-		for response := range errorChannel {
-			log.Println(response.Err)
-		}
-
-		if *debugging <= 1 {
-			bar.FinishPrint("Upload finished")
-		}
+	if *doUpload == true {
+		upload(sftp, config.Upload)
 	}
 }
