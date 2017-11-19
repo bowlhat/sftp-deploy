@@ -24,8 +24,9 @@ func foundFileChannels(channels []chan sftpclient.FileResponse) func(sftpclient.
 }
 
 // Upload and synchronize folder trees
-func uploadProcessor(c *sftpclient.SFTPClient, folders []sftpclient.FolderMapping) (found <-chan sftpclient.FileResponse, copied <-chan sftpclient.FileResponse) {
+func uploadProcessor(c *sftpclient.SFTPClient, folders []sftpclient.FolderMapping) (found <-chan sftpclient.FileResponse, copied <-chan sftpclient.FileResponse, done <-chan bool) {
 	doneChannel := make(chan bool)
+	bubbleDoneChannel := make(chan bool)
 
 	foundFilesResponseChannel := make(chan sftpclient.FileResponse)
 	copiedFilesResponseChannel := make(chan sftpclient.FileResponse)
@@ -99,12 +100,14 @@ func uploadProcessor(c *sftpclient.SFTPClient, folders []sftpclient.FolderMappin
 		for range folders {
 			<-doneChannel
 		}
+		bubbleDoneChannel <- true
 		close(copiedFilesResponseChannel)
 		close(foundFilesResponseChannel)
 		close(doneChannel)
+		close(bubbleDoneChannel)
 	}()
 
-	return foundFilesResponseChannel, copiedFilesResponseChannel
+	return foundFilesResponseChannel, copiedFilesResponseChannel, bubbleDoneChannel
 }
 
 func upload(c *sftpclient.SFTPClient, config []sftpclient.FolderMapping) {
@@ -114,35 +117,33 @@ func upload(c *sftpclient.SFTPClient, config []sftpclient.FolderMapping) {
 		bar.Total = 0
 		bar.Prefix("Uploading... ")
 		bar.Start()
+		defer bar.FinishPrint("Upload finished")
+	} else {
+		defer log.Println("Finished")
 	}
 
-	foundFiles, copiedFiles := uploadProcessor(c, config)
+	foundFiles, copiedFiles, done := uploadProcessor(c, config)
 
-	go func() {
-		for file := range foundFiles {
+	for {
+		select {
+		case file := <-foundFiles:
 			if *debugging > 1 {
 				log.Println("Found file for upload", file.File)
 			} else {
 				atomic.AddInt64(&bar.Total, 1)
 			}
-		}
-	}()
+		case file := <-copiedFiles:
+			if file.Err != nil {
+				log.Println(fmt.Errorf("Received error copying: %v", file.Err))
+			} else if *debugging > 1 {
+				log.Println("Uploaded file", file.File)
+			}
 
-	for file := range copiedFiles {
-		if file.Err != nil {
-			log.Println(fmt.Errorf("Received error copying: %v", file.Err))
-		} else if *debugging > 1 {
-			log.Println("Uploaded file", file.File)
+			if *debugging <= 1 {
+				bar.Increment()
+			}
+		case <-done:
+			return
 		}
-
-		if *debugging <= 1 {
-			bar.Increment()
-		}
-	}
-
-	if *debugging <= 1 {
-		bar.FinishPrint("Upload finished")
-	} else {
-		log.Println("Finished")
 	}
 }
