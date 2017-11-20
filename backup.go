@@ -25,24 +25,30 @@ func backup(c *sftpclient.SFTPClient, config backupConfig) {
 		bar.Start()
 	}
 
-	saved, errors := c.BackupFiles(config.To, files)
+	errorsEncountered := false
+	saved, errors, done := c.BackupFiles(config.To, files)
 
-	go func() {
-		for range saved {
-			bar.Increment()
+	defer func() {
+		if errorsEncountered {
+			log.Fatalln("Backup failed. Quitting.")
+		}
+
+		if *debugging <= 1 {
+			bar.FinishPrint("Backup complete")
 		}
 	}()
 
-	errorsEncountered := false
-	for err := range errors {
-		errorsEncountered = true
-		log.Println(err.Err)
-	}
-	if errorsEncountered {
-		log.Fatalln("Backup failed. Quitting.")
-	}
-
-	if *debugging <= 1 {
-		bar.FinishPrint("Backup complete")
+	for {
+		select {
+		case <-saved:
+			if *debugging <= 1 {
+				bar.Increment()
+			}
+		case err := <-errors:
+			errorsEncountered = true
+			log.Println(err.Err)
+		case <-done:
+			return
+		}
 	}
 }
