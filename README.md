@@ -47,10 +47,13 @@ When deploying to a live site it is recommended to use the `-backup=true` flag, 
 
 Ideally you will have an ssh-agent running with a valid key loaded which is accepted by the sftp server. (On Windows the supported ssh-agent is Pageant which is available from [the PuTTY project](http://www.chiark.greenend.org.uk/~sgtatham/putty/download.html)) However you can use the configuration file to specify a password if required. The program will NOT prompt for a password interactively so if password-based authentication is required then you MUST supply the password in the configuration.
 
-## Related Code
-All these repositories are included automatically by the `go get` command. They're documented here for completeness.
+## Our Packages
 
-- Our custom [SSH Agent abstraction](https://github.com/bowlhat/ssh-agent)
-- Our custom [SFTP Client abstraction](https://github.com/bowlhat/sftp-client)
-- Out custom [SSH Client abstraction](https://github.com/bowlhat/ssh-client)
+- [SSH Agent abstraction](https://github.com/bowlhat/sftp-deploy/ssh-agent)
+- [SSH Client abstraction](https://github.com/bowlhat/sftp-deploy/ssh-client)
+- [SFTP Client abstraction](https://github.com/bowlhat/sftp-deploy/sftp-client)
+
+## Related Code
+These packages are included automatically by the `go get` command. They're documented here for completeness.
+
 - [Progressbars](https://github.com/cheggaaa/pb) are powered by cheggaaa's progressbar project
