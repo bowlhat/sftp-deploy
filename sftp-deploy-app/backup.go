@@ -12,21 +12,12 @@ func backup(c *sftpclient.SFTPClient, config backupConfig) {
 	var bar *pb.ProgressBar
 	if *debugging <= 1 {
 		bar = pb.New(0)
-	}
-
-	files, err := c.FindAllRemoteFiles(config.From)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	if *debugging <= 1 {
-		bar.Total = int64(len(files))
+		bar.Total = 0
 		bar.Prefix("Backing-up... ")
 		bar.Start()
 	}
 
 	errorsEncountered := false
-	saved, errors, done := c.BackupFiles(config.To, files)
 
 	defer func() {
 		if errorsEncountered {
@@ -38,17 +29,26 @@ func backup(c *sftpclient.SFTPClient, config backupConfig) {
 		}
 	}()
 
-	for {
-		select {
-		case <-saved:
-			if *debugging <= 1 {
-				bar.Increment()
-			}
-		case err := <-errors:
+	files, err := c.FindAllRemoteFiles(config.From)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	bar.Total = int64(len(files))
+
+	responseChannel := make(chan sftpclient.Response)
+
+	go c.BackupFiles(config.To, files, responseChannel)
+
+	for response := range responseChannel {
+		if response.Err != nil {
+			log.Println("Error backing-up file", response.File, response.Err)
 			errorsEncountered = true
-			log.Println(err.Err)
-		case <-done:
-			return
+		} else if *debugging > 1 && response.File != "" {
+			log.Println("Backed-up file", response.File)
+		}
+		if *debugging <= 1 {
+			bar.Increment()
 		}
 	}
 }

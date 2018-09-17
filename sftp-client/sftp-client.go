@@ -12,13 +12,8 @@ type SFTPClient struct {
 	connection *sshclient.SSHConnection
 }
 
-// ErrorResponse is a response which can only ever be an error
-type ErrorResponse struct {
-	Err error
-}
-
-// FileResponse is a reponse which contains a filename or error
-type FileResponse struct {
+// Response is a reponse which contains a filename or error
+type Response struct {
 	File string
 	Err  error
 }

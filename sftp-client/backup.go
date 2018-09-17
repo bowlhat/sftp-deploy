@@ -13,64 +13,57 @@ import (
 )
 
 // BackupFiles saves remote files to a local tar.gz file
-func (c *SFTPClient) BackupFiles(destination string, files []string) (saved <-chan bool, r <-chan ErrorResponse, done <-chan bool) {
-	responseChannel := make(chan ErrorResponse)
-	savedChannel := make(chan bool)
-	doneChannel := make(chan bool)
+func (c *SFTPClient) BackupFiles(destination string, files []string, response chan<- Response) {
+	defer func() {
+		close(response)
+	}()
 
-	go func() {
-		defer func() {
-			doneChannel <- true
-			close(responseChannel)
-			close(savedChannel)
-			close(doneChannel)
-		}()
-
-		var err error
-		if _, err = os.Stat(destination); err != nil {
-			if err2 := os.Mkdir(destination, 0755); err2 != nil {
-				responseChannel <- ErrorResponse{Err: fmt.Errorf("Cannot access folder: %s; Failed to create folder: %s", err, err2)}
+	var err error
+	if _, err = os.Stat(destination); err != nil {
+		if err2 := os.Mkdir(destination, 0755); err2 != nil {
+			response <- Response{
+				File: "",
+				Err:  fmt.Errorf("Cannot access folder: %s; Failed to create folder: %s", err, err2),
 			}
 		}
+	}
 
-		tarFileName := fmt.Sprintf("%s.tar.gz", time.Now().UTC().Format("20060102-150405"))
-		// create a file and get a handle to write gzipped data to
-		tarPath := filepath.Join(destination, tarFileName)
-		var zbuf *os.File
-		if zbuf, err = os.Create(tarPath); err != nil {
-			responseChannel <- ErrorResponse{err}
-		}
-		defer func() {
-			if err := zbuf.Close(); err != nil {
-				log.Fatal(err)
-			}
-		}()
-
-		// set up the gzip intermediary backing onto the file above
-		gzw := gzip.NewWriter(zbuf)
-		defer func() {
-			if err := gzw.Close(); err != nil {
-				log.Fatal(err)
-			}
-		}()
-
-		// get a handle to a tar writer instance using the gzip intermediate buffer above
-		tw := tar.NewWriter(gzw)
-		defer func() {
-			if err := tw.Close(); err != nil {
-				log.Fatal(err)
-			}
-		}()
-
-		for _, filename := range files {
-			if err := c.TarFile(tw, filename); err != nil {
-				responseChannel <- ErrorResponse{err}
-			}
-			savedChannel <- true
+	tarFileName := fmt.Sprintf("%s.tar.gz", time.Now().UTC().Format("20060102-150405"))
+	// create a file and get a handle to write gzipped data to
+	tarPath := filepath.Join(destination, tarFileName)
+	var zbuf *os.File
+	if zbuf, err = os.Create(tarPath); err != nil {
+		response <- Response{File: "", Err: err}
+	}
+	defer func() {
+		if err := zbuf.Close(); err != nil {
+			log.Fatal(err)
 		}
 	}()
 
-	return savedChannel, responseChannel, doneChannel
+	// set up the gzip intermediary backing onto the file above
+	gzw := gzip.NewWriter(zbuf)
+	defer func() {
+		if err := gzw.Close(); err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	// get a handle to a tar writer instance using the gzip intermediate buffer above
+	tw := tar.NewWriter(gzw)
+	defer func() {
+		if err := tw.Close(); err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	for _, filename := range files {
+		if err := c.TarFile(tw, filename); err != nil {
+			response <- Response{File: filename, Err: err}
+		} else {
+			response <- Response{File: filename, Err: nil}
+		}
+	}
 }
 
 // TarFile adds a remote file into a tar archive

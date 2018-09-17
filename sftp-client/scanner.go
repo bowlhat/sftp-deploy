@@ -6,32 +6,32 @@ import (
 )
 
 // FindRemoteFiles enumerates files in a remote directory
-func (c *SFTPClient) FindRemoteFiles(path string) func() (r <-chan FileResponse) {
-	return func() (r <-chan FileResponse) {
-		responseChannel := make(chan FileResponse)
+func (c *SFTPClient) FindRemoteFiles(path string) func() (r <-chan Response) {
+	return func() (r <-chan Response) {
+		responseChannel := make(chan Response)
 
 		go func() {
 			defer close(responseChannel)
 			stats, err := c.client.Lstat(path)
 			if err != nil {
-				responseChannel <- FileResponse{File: "", Err: fmt.Errorf("Cannot STAT 'remote:%s': %v", path, err)}
+				responseChannel <- Response{File: "", Err: fmt.Errorf("Cannot STAT 'remote:%s': %v", path, err)}
 				return
 			}
 			if !stats.IsDir() {
-				responseChannel <- FileResponse{File: "", Err: fmt.Errorf("'remote:%s' is not a directory", path)}
+				responseChannel <- Response{File: "", Err: fmt.Errorf("'remote:%s' is not a directory", path)}
 				return
 			}
 
 			var walker = *c.client.Walk(path)
 			for walker.Step() {
 				if err := walker.Err(); err != nil {
-					responseChannel <- FileResponse{File: "", Err: err}
+					responseChannel <- Response{File: "", Err: err}
 					continue
 				}
 				if walker.Path() == path {
 					continue
 				}
-				responseChannel <- FileResponse{File: walker.Path(), Err: nil}
+				responseChannel <- Response{File: walker.Path(), Err: nil}
 			}
 		}()
 
@@ -39,10 +39,10 @@ func (c *SFTPClient) FindRemoteFiles(path string) func() (r <-chan FileResponse)
 	}
 }
 
-func findRemoteFilesAggregator(functions []func() (r <-chan FileResponse)) (r <-chan FileResponse) {
-	responseChannel := make(chan FileResponse)
+func findRemoteFilesAggregator(functions []func() (r <-chan Response)) (r <-chan Response) {
+	responseChannel := make(chan Response)
 
-	go func(functions []func() (r <-chan FileResponse)) {
+	go func(functions []func() (r <-chan Response)) {
 		for _, function := range functions {
 			intermediateChannel := function()
 			for response := range intermediateChannel {
@@ -57,7 +57,7 @@ func findRemoteFilesAggregator(functions []func() (r <-chan FileResponse)) (r <-
 
 // FindAllRemoteFiles enumerates all remote files in multiple directories and their descendents
 func (c *SFTPClient) FindAllRemoteFiles(paths []string) ([]string, error) {
-	var functions []func() (r <-chan FileResponse)
+	var functions []func() (r <-chan Response)
 	var files []string
 
 	for _, path := range paths {
